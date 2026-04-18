@@ -107,7 +107,7 @@ body{
     cursor:grab;
 }
 
-/* 📖 RIGHT PAGE */
+/* BOOK SHADOWS */
 #page2{
     box-shadow:
         inset 30px 0 50px rgba(0,0,0,.25),
@@ -115,7 +115,6 @@ body{
         0 40px 80px rgba(0,0,0,.28);
 }
 
-/* 📖 LEFT PAGE — OPRAVENÝ SILNÝ BOOK EFFECT */
 #page1{
     box-shadow:
         inset -40px 0 60px rgba(0,0,0,.35),
@@ -132,6 +131,13 @@ canvas{
 
 @media(max-width:700px){
 .nav{font-size:44px;padding:18px;}
+}
+
+/* 🔥 AUTO HIDE UI */
+.hidden-ui{
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .3s ease;
 }
 </style>
 </head>
@@ -183,6 +189,38 @@ const pageInfo=document.getElementById("pageInfo");
 
 const zoomIn=document.getElementById("zoomIn");
 const zoomOut=document.getElementById("zoomOut");
+
+const uiElements = [
+    document.getElementById("ui"),
+    document.getElementById("prev"),
+    document.getElementById("next")
+];
+
+let hideTimer;
+
+function showUI(){
+    uiElements.forEach(el => el.classList.remove("hidden-ui"));
+    resetHideTimer();
+}
+
+function hideUI(){
+    uiElements.forEach(el => el.classList.add("hidden-ui"));
+}
+
+function resetHideTimer(){
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hideUI, 5000);
+}
+
+function userActivity(){
+    showUI();
+}
+
+window.addEventListener("mousemove", userActivity);
+window.addEventListener("mousedown", userActivity);
+window.addEventListener("keydown", userActivity);
+window.addEventListener("touchstart", userActivity);
+window.addEventListener("touchmove", userActivity);
 
 const single=()=>innerWidth<1100;
 
@@ -362,6 +400,8 @@ pdfDoc=pdf;
 await go(1);
 document.getElementById("viewport").style.visibility="visible";
 document.getElementById("loader").style.display="none";
+
+resetHideTimer(); // start auto-hide timer
 });
 </script>
 
