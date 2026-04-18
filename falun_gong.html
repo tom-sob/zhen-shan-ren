@@ -5,86 +5,80 @@
 <title>Falun Gong</title>
 
 <style>
+
 body{
-	margin: 0;
-	height: 100vh;
-	overflow: hidden;
-	font-family: sans-serif;
-	user-select: none;
-	background-image: url(images/table_background.jpg);
-	background-size: cover;
+margin:0;
+height:100vh;
+overflow:hidden;
+font-family:sans-serif;
+user-select:none;
+background:url(images/table_background.jpg);
+background-size:cover;
 }
 
 /* LOADER */
 #loader{
-    position:fixed;
-    inset:0;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    z-index:200000;
+position:fixed;
+inset:0;
+display:flex;
+justify-content:center;
+align-items:center;
+z-index:200000;
 }
 
 .spinner{
-    width:70px;
-    height:70px;
-    border:6px solid rgba(255,255,255,.2);
-    border-top:6px solid white;
-    border-radius:50%;
-    animation:spin 1s linear infinite;
+width:70px;
+height:70px;
+border:6px solid rgba(255,255,255,.2);
+border-top:6px solid white;
+border-radius:50%;
+animation:spin 1s linear infinite;
 }
 
 @keyframes spin{
-    from{transform:rotate(0);}
-    to{transform:rotate(360deg);}
+from{transform:rotate(0);}
+to{transform:rotate(360deg);}
 }
 
 /* UI */
 #ui{
-    position:fixed;
-    top:10px;
-    right:10px;
-    background:rgba(0,0,0,.6);
-    color:white;
-    padding:10px;
-    border-radius:8px;
-    display:flex;
-    align-items:center;
-    gap:8px;
-    z-index:10000;
+position:fixed;
+top:10px;
+right:10px;
+background:rgba(0,0,0,.6);
+color:white;
+padding:10px;
+border-radius:8px;
+display:flex;
+align-items:center;
+gap:8px;
+z-index:10000;
+transition:.3s;
 }
 
 .ui-btn{
-    width:34px;
-    height:34px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:rgba(0,0,0,.6);
-    border-radius:6px;
-    cursor:pointer;
-    font-size:20px;
+width:34px;
+height:34px;
+display:flex;
+align-items:center;
+justify-content:center;
+background:rgba(0,0,0,.6);
+border-radius:6px;
+cursor:pointer;
+font-size:20px;
 }
 
 /* NAV */
 .nav{
-    position:fixed;
-    top:50%;
-    transform:translateY(-50%);
-    font-size:60px;
-    color:white;
-    cursor:pointer;
-    padding:30px;
-    opacity:.9;
-    z-index:99999;
-
-    text-shadow:0 2px 6px rgba(0,0,0,.85);
-    filter:drop-shadow(0 2px 4px rgba(0,0,0,.6));
-}
-
-.nav:hover{
-    opacity:1;
-    transform:translateY(-50%) scale(1.08);
+position:fixed;
+top:50%;
+transform:translateY(-50%);
+font-size:60px;
+color:white;
+cursor:pointer;
+padding:30px;
+z-index:99999;
+text-shadow:0 2px 6px rgba(0,0,0,.85);
 }
 
 #prev{left:10px;}
@@ -92,57 +86,56 @@ body{
 
 /* VIEW */
 #viewport{
-    position:absolute;
-    inset:0;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    overflow:hidden;
-    visibility:hidden;
+position:absolute;
+inset:0;
+display:flex;
+justify-content:center;
+align-items:center;
+overflow:hidden;
+visibility:hidden;
 }
 
 #viewer{
-    display:flex;
-    gap:0;
-    cursor:grab;
+display:flex;
+gap:0;
+cursor:grab;
 }
 
-/* 📖 RIGHT PAGE */
+#viewer.dragging{
+cursor:grabbing;
+}
+
+/* BOOK SHADOW */
 #page2{
-    box-shadow:
-        inset 30px 0 50px rgba(0,0,0,.25),
-        25px 0 45px rgba(0,0,0,.30),
-        0 40px 80px rgba(0,0,0,.28);
+box-shadow:
+inset 30px 0 50px rgba(0,0,0,.25),
+25px 0 45px rgba(0,0,0,.30),
+0 40px 80px rgba(0,0,0,.28);
 }
 
-/* 📖 LEFT PAGE — OPRAVENÝ SILNÝ BOOK EFFECT */
 #page1{
-    box-shadow:
-        inset -40px 0 60px rgba(0,0,0,.35),
-        inset 10px 0 20px rgba(0,0,0,.10),
-        -35px 0 55px rgba(0,0,0,.35),
-        0 40px 80px rgba(0,0,0,.28);
+box-shadow:
+inset -40px 0 60px rgba(0,0,0,.35),
+-35px 0 55px rgba(0,0,0,.35),
+0 40px 80px rgba(0,0,0,.28);
 }
 
-canvas{
-    background:white;
+canvas{background:white;}
+
+.hidden-ui{
+opacity:0;
+pointer-events:none;
 }
 
-#viewer.dragging{cursor:grabbing;}
-
-@media(max-width:700px){
-.nav{font-size:44px;padding:18px;}
-}
 </style>
 </head>
 
 <body>
 
-<div id="loader">
-<div class="spinner"></div>
-</div>
+<div id="loader"><div class="spinner"></div></div>
 
 <div id="ui">
+<div id="fsBtn" class="ui-btn">⛶</div>
 <div id="zoomOut" class="ui-btn">−</div>
 <div id="zoomIn" class="ui-btn">+</div>
 <span id="pageInfo">1 / ?</span>
@@ -162,6 +155,7 @@ canvas{
 <script src="./js/pdf.min.js"></script>
 
 <script>
+
 pdfjsLib.GlobalWorkerOptions.workerSrc="./js/pdf.worker.min.js";
 
 const url="falun_gong.pdf";
@@ -183,13 +177,149 @@ const pageInfo=document.getElementById("pageInfo");
 
 const zoomIn=document.getElementById("zoomIn");
 const zoomOut=document.getElementById("zoomOut");
+const fsBtn=document.getElementById("fsBtn");
+
+/* ================= UI AUTO HIDE ================= */
+
+const uiElements=[
+document.getElementById("ui"),
+document.getElementById("prev"),
+document.getElementById("next")
+];
+
+let hideTimer;
+
+function showUI(){
+uiElements.forEach(el=>el.classList.remove("hidden-ui"));
+clearTimeout(hideTimer);
+hideTimer=setTimeout(()=>uiElements.forEach(el=>el.classList.add("hidden-ui")),5000);
+}
+
+["mousemove","mousedown","touchstart","keydown"]
+.forEach(e=>window.addEventListener(e,showUI));
+
+/* ================= FULLSCREEN ================= */
+
+fsBtn.onclick=()=>{
+if(!document.fullscreenElement)
+document.documentElement.requestFullscreen();
+else
+document.exitFullscreen();
+};
+
+/* ================= DRAG ================= */
+
+function startDrag(x,y){
+dragging=true;
+sx=x-ox;
+sy=y-oy;
+viewer.classList.add("dragging");
+}
+
+function moveDrag(x,y){
+if(!dragging)return;
+ox=x-sx;
+oy=y-sy;
+viewer.style.transform=`translate(${ox}px,${oy}px)`;
+}
+
+function endDrag(){
+dragging=false;
+viewer.classList.remove("dragging");
+}
+
+viewer.onmousedown=e=>startDrag(e.clientX,e.clientY);
+window.onmousemove=e=>moveDrag(e.clientX,e.clientY);
+window.onmouseup=endDrag;
+
+viewer.ontouchstart=e=>{
+const t=e.touches[0];
+startDrag(t.clientX,t.clientY);
+};
+
+viewer.ontouchmove=e=>{
+const t=e.touches[0];
+moveDrag(t.clientX,t.clientY);
+};
+
+viewer.ontouchend=endDrag;
+
+/* ================= ZOOM ================= */
+
+function zoom(dir){
+
+const prev=scale;
+const z=scale/baseScale;
+
+scale=baseScale*(dir>0?z+0.1:Math.max(1,z-0.1));
+
+const ratio=scale/prev;
+
+ox*=ratio;
+oy*=ratio;
+
+viewer.style.transform=`translate(${ox}px,${oy}px)`;
+
+draw();
+}
+
+zoomIn.onclick=()=>zoom(1);
+zoomOut.onclick=()=>zoom(-1);
+
+/* ================= WHEEL ================= */
+
+let wheelAcc=0;
+let wheelT;
+
+window.addEventListener("wheel",e=>{
+e.preventDefault();
+
+wheelAcc+=e.deltaY;
+
+clearTimeout(wheelT);
+
+wheelT=setTimeout(()=>{
+if(wheelAcc>0) nextPage();
+else prevPage();
+wheelAcc=0;
+},80);
+
+},{passive:false});
+
+/* ================= KEYBOARD ================= */
+
+window.addEventListener("keydown",e=>{
+
+if(document.activeElement===pageInput) return;
+
+switch(e.key){
+case "ArrowRight":
+case "PageDown":
+case " ":
+e.preventDefault();
+nextPage();
+break;
+
+case "ArrowLeft":
+case "PageUp":
+e.preventDefault();
+prevPage();
+break;
+}
+
+});
+
+/* ================= PDF ================= */
 
 const single=()=>innerWidth<1100;
 
 async function getFitScale(page){
+
 const vp=page.getViewport({scale:1});
-const w=innerWidth*0.96;
-const h=innerHeight*0.96;
+
+/* ⭐ Tvoje změna */
+const w=innerWidth*0.93;
+const h=innerHeight*0.93;
 
 if(single())
 return Math.min(w/vp.width,h/vp.height);
@@ -270,100 +400,25 @@ else go(currentPage-step);
 next.onclick=nextPage;
 prev.onclick=prevPage;
 
-pageInput.addEventListener("input",e=>{
+pageInput.oninput=e=>{
 let p=parseInt(e.target.value);
 if(!p)return;
 go(Math.max(1,Math.min(pdfDoc.numPages,p)));
-});
-
-function zoom(dir){
-
-const prev=scale;
-const z=scale/baseScale;
-
-const newZ=dir>0?z+0.1:Math.max(1,z-0.1);
-scale=baseScale*newZ;
-
-const ratio=scale/prev;
-
-ox*=ratio;
-oy*=ratio;
-
-viewer.style.transform=`translate(${ox}px,${oy}px)`;
-
-requestAnimationFrame(draw);
-}
-
-zoomIn.onclick=()=>zoom(1);
-zoomOut.onclick=()=>zoom(-1);
-
-let wheelAcc=0;
-let wheelT;
-
-window.addEventListener("wheel",e=>{
-e.preventDefault();
-
-wheelAcc+=e.deltaY;
-
-clearTimeout(wheelT);
-
-wheelT=setTimeout(()=>{
-
-const threshold=80;
-let steps=Math.round(Math.abs(wheelAcc)/threshold);
-steps=Math.max(1,Math.min(5,steps));
-
-if(wheelAcc>0){
-for(let i=0;i<steps;i++) nextPage();
-}else{
-for(let i=0;i<steps;i++) prevPage();
-}
-
-wheelAcc=0;
-
-},80);
-
-},{passive:false});
-
-viewer.onmousedown=e=>{
-dragging=true;
-sx=e.clientX-ox;
-sy=e.clientY-oy;
-viewer.classList.add("dragging");
 };
 
-window.onmouseup=()=>{
-dragging=false;
-viewer.classList.remove("dragging");
-};
-
-viewer.onmousemove=e=>{
-if(!dragging)return;
-ox=e.clientX-sx;
-oy=e.clientY-sy;
-viewer.style.transform=`translate(${ox}px,${oy}px)`;
-};
-
-document.addEventListener("keydown",e=>{
-if(document.activeElement===pageInput)return;
-if(e.key==="ArrowRight") nextPage();
-if(e.key==="ArrowLeft") prevPage();
-});
-
-document.addEventListener("contextmenu",e=>{
-e.preventDefault();
-return false;
-},{capture:true});
-
-window.onresize=()=>pdfDoc&&go(currentPage);
+/* ================= LOAD ================= */
 
 pdfjsLib.getDocument(url).promise.then(async pdf=>{
 pdfDoc=pdf;
+
 await go(1);
+
 document.getElementById("viewport").style.visibility="visible";
 document.getElementById("loader").style.display="none";
-});
-</script>
 
+showUI();
+});
+
+</script>
 </body>
 </html>
