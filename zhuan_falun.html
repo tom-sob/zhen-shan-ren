@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Katalog</title>
+
+<style>
+body{
+    margin:0;
+    background:#222;
+    height:100vh;
+    overflow:hidden;
+    font-family:sans-serif;
+    user-select:none;
+}
+
+/* LOADER */
+#loader{
+    position:fixed;
+    inset:0;
+    background:#222;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    z-index:200000;
+}
+
+.spinner{
+    width:70px;
+    height:70px;
+    border:6px solid rgba(255,255,255,.2);
+    border-top:6px solid white;
+    border-radius:50%;
+    animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+    from{transform:rotate(0);}
+    to{transform:rotate(360deg);}
+}
+
+/* UI */
+#ui{
+    position:fixed;
+    top:10px;
+    right:10px;
+    background:rgba(0,0,0,.6);
+    color:white;
+    padding:10px;
+    border-radius:8px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    z-index:10000;
+}
+
+.ui-btn{
+    width:34px;
+    height:34px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(0,0,0,.6);
+    border-radius:6px;
+    cursor:pointer;
+    font-size:20px;
+}
+
+/* NAV */
+.nav{
+    position:fixed;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:60px;
+    color:white;
+    cursor:pointer;
+    padding:30px;
+    opacity:.9;
+    z-index:99999;
+
+    text-shadow:0 2px 6px rgba(0,0,0,.85);
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,.6));
+}
+
+.nav:hover{
+    opacity:1;
+    transform:translateY(-50%) scale(1.08);
+}
+
+#prev{left:10px;}
+#next{right:10px;}
+
+/* VIEW */
+#viewport{
+    position:absolute;
+    inset:0;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    overflow:hidden;
+    visibility:hidden;
+}
+
+#viewer{
+    display:flex;
+    gap:0;
+    cursor:grab;
+}
+
+/* 📖 RIGHT PAGE */
+#page2{
+    box-shadow:
+        inset 30px 0 50px rgba(0,0,0,.25),
+        25px 0 45px rgba(0,0,0,.30),
+        0 40px 80px rgba(0,0,0,.28);
+}
+
+/* 📖 LEFT PAGE — OPRAVENÝ SILNÝ BOOK EFFECT */
+#page1{
+    box-shadow:
+        inset -40px 0 60px rgba(0,0,0,.35),
+        inset 10px 0 20px rgba(0,0,0,.10),
+        -35px 0 55px rgba(0,0,0,.35),
+        0 40px 80px rgba(0,0,0,.28);
+}
+
+canvas{
+    background:white;
+}
+
+#viewer.dragging{cursor:grabbing;}
+
+@media(max-width:700px){
+.nav{font-size:44px;padding:18px;}
+}
+</style>
+</head>
+
+<body>
+
+<div id="loader">
+<div class="spinner"></div>
+</div>
+
+<div id="ui">
+<div id="zoomOut" class="ui-btn">−</div>
+<div id="zoomIn" class="ui-btn">+</div>
+<span id="pageInfo">1 / ?</span>
+<input id="pageInput" type="number" min="1" style="width:70px;">
+</div>
+
+<div id="prev" class="nav">❮</div>
+<div id="next" class="nav">❯</div>
+
+<div id="viewport">
+<div id="viewer">
+<canvas id="page1"></canvas>
+<canvas id="page2"></canvas>
+</div>
+</div>
+
+<script src="./js/pdf.min.js"></script>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc="./js/pdf.worker.min.js";
+
+const url="zhuan_falun.pdf";
+
+let pdfDoc;
+let currentPage=1;
+let baseScale=1;
+let scale=1;
+
+let ox=0,oy=0;
+let dragging=false,sx=0,sy=0;
+
+const viewer=document.getElementById("viewer");
+const c1=document.getElementById("page1");
+const c2=document.getElementById("page2");
+
+const pageInput=document.getElementById("pageInput");
+const pageInfo=document.getElementById("pageInfo");
+
+const zoomIn=document.getElementById("zoomIn");
+const zoomOut=document.getElementById("zoomOut");
+
+const single=()=>innerWidth<1100;
+
+async function getFitScale(page){
+const vp=page.getViewport({scale:1});
+const w=innerWidth*0.96;
+const h=innerHeight*0.96;
+
+if(single())
+return Math.min(w/vp.width,h/vp.height);
+
+return Math.min(w/(vp.width*2),h/vp.height);
+}
+
+function spread(p){
+if(single()) return[p,null];
+if(p===1) return[1,null];
+const l=p%2===0?p:p-1;
+return[l,l+1];
+}
+
+async function render(num,canvas){
+
+const page=await pdfDoc.getPage(num);
+const vp=page.getViewport({scale});
+
+const ctx=canvas.getContext("2d");
+const dpr=devicePixelRatio||1;
+
+canvas.width=vp.width*dpr;
+canvas.height=vp.height*dpr;
+
+canvas.style.width=vp.width+"px";
+canvas.style.height=vp.height+"px";
+
+ctx.setTransform(1,0,0,1,0,0);
+ctx.scale(dpr,dpr);
+
+await page.render({canvasContext:ctx,viewport:vp}).promise;
+}
+
+async function draw(){
+
+pageInfo.textContent=`${currentPage} / ${pdfDoc.numPages}`;
+pageInput.value=currentPage;
+
+const [l,r]=spread(currentPage);
+
+await render(l,c1);
+
+if(!single() && r && r<=pdfDoc.numPages){
+c2.style.display="block";
+await render(r,c2);
+}else{
+c2.style.display="none";
+}
+}
+
+async function go(p){
+
+currentPage=p;
+
+const page=await pdfDoc.getPage(1);
+baseScale=await getFitScale(page);
+scale=baseScale;
+
+ox=oy=0;
+viewer.style.transform="translate(0,0)";
+
+await draw();
+}
+
+function nextPage(){
+const step=single()?1:2;
+if(currentPage===1) go(2);
+else go(Math.min(pdfDoc.numPages,currentPage+step));
+}
+
+function prevPage(){
+const step=single()?1:2;
+if(currentPage<=2) go(1);
+else go(currentPage-step);
+}
+
+next.onclick=nextPage;
+prev.onclick=prevPage;
+
+pageInput.addEventListener("input",e=>{
+let p=parseInt(e.target.value);
+if(!p)return;
+go(Math.max(1,Math.min(pdfDoc.numPages,p)));
+});
+
+function zoom(dir){
+
+const prev=scale;
+const z=scale/baseScale;
+
+const newZ=dir>0?z+0.1:Math.max(1,z-0.1);
+scale=baseScale*newZ;
+
+const ratio=scale/prev;
+
+ox*=ratio;
+oy*=ratio;
+
+viewer.style.transform=`translate(${ox}px,${oy}px)`;
+
+requestAnimationFrame(draw);
+}
+
+zoomIn.onclick=()=>zoom(1);
+zoomOut.onclick=()=>zoom(-1);
+
+let wheelAcc=0;
+let wheelT;
+
+window.addEventListener("wheel",e=>{
+e.preventDefault();
+
+wheelAcc+=e.deltaY;
+
+clearTimeout(wheelT);
+
+wheelT=setTimeout(()=>{
+
+const threshold=80;
+let steps=Math.round(Math.abs(wheelAcc)/threshold);
+steps=Math.max(1,Math.min(5,steps));
+
+if(wheelAcc>0){
+for(let i=0;i<steps;i++) nextPage();
+}else{
+for(let i=0;i<steps;i++) prevPage();
+}
+
+wheelAcc=0;
+
+},80);
+
+},{passive:false});
+
+viewer.onmousedown=e=>{
+dragging=true;
+sx=e.clientX-ox;
+sy=e.clientY-oy;
+viewer.classList.add("dragging");
+};
+
+window.onmouseup=()=>{
+dragging=false;
+viewer.classList.remove("dragging");
+};
+
+viewer.onmousemove=e=>{
+if(!dragging)return;
+ox=e.clientX-sx;
+oy=e.clientY-sy;
+viewer.style.transform=`translate(${ox}px,${oy}px)`;
+};
+
+document.addEventListener("keydown",e=>{
+if(document.activeElement===pageInput)return;
+if(e.key==="ArrowRight") nextPage();
+if(e.key==="ArrowLeft") prevPage();
+});
+
+document.addEventListener("contextmenu",e=>{
+e.preventDefault();
+return false;
+},{capture:true});
+
+window.onresize=()=>pdfDoc&&go(currentPage);
+
+pdfjsLib.getDocument(url).promise.then(async pdf=>{
+pdfDoc=pdf;
+await go(1);
+document.getElementById("viewport").style.visibility="visible";
+document.getElementById("loader").style.display="none";
+});
+</script>
+
+</body>
+</html>
