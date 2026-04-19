@@ -2,13 +2,15 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Falun Gong</title>
 
 <style>
 
 body{
 margin:0;
-height:100vh;
+height:100dvh;
 overflow:hidden;
 font-family:sans-serif;
 user-select:none;
@@ -98,11 +100,15 @@ visibility:hidden;
 #viewer{
 display:flex;
 gap:0;
-cursor:grab;
+cursor:pointer;
 }
 
 #viewer.dragging{
-cursor:grabbing;
+cursor:pointer;
+}
+	
+#viewer.dragging canvas{
+filter: drop-shadow(0 0 6px rgba(0,0,0,0.4));
 }
 
 /* BOOK SHADOW */

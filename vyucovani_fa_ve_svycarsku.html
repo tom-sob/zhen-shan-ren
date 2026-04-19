@@ -324,8 +324,8 @@ async function getFitScale(page){
 const vp=page.getViewport({scale:1});
 
 /* ⭐ Tvoje změna */
-const w = document.documentElement.clientWidth * 0.93;
-const h = document.documentElement.clientHeight * 0.93;
+const w=innerWidth*0.93;
+const h=innerHeight*0.93;
 
 if(single())
 return Math.min(w/vp.width,h/vp.height);
