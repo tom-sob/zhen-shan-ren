@@ -425,6 +425,20 @@ document.getElementById("loader").style.display="none";
 showUI();
 });
 
+viewer.addEventListener("contextmenu", e => {
+    e.preventDefault();
+});
+
+document.addEventListener("dragstart", e => {
+    e.preventDefault();
+});
+
+document.addEventListener("keydown", e => {
+    if (e.ctrlKey && ["s","p","u"].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+    }
+});
+	
 </script>
 </body>
 </html>
