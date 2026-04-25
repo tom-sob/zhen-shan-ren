@@ -16,6 +16,12 @@ background:url(images/table_background.jpg);
 background-size:cover;
 }
 
+/* 🔥 FIX PRO TOUCH */
+#viewer{
+touch-action:none;
+}
+
+/* LOADER */
 #loader{
 position:fixed;
 inset:0;
@@ -39,6 +45,7 @@ from{transform:rotate(0);}
 to{transform:rotate(360deg);}
 }
 
+/* UI */
 #ui{
 position:fixed;
 top:10px;
@@ -200,23 +207,17 @@ else
 document.exitFullscreen();
 };
 
-/* 🔥 KEYBOARD NAVIGATION (VRÁCENO) */
+/* KEYBOARD */
 window.addEventListener("keydown",e=>{
 if(document.activeElement===pageInput) return;
 
-switch(e.key){
-case "ArrowRight":
-case "PageDown":
-case " ":
+if(["ArrowRight","PageDown"," "].includes(e.key)){
 e.preventDefault();
 nextPage();
-break;
-
-case "ArrowLeft":
-case "PageUp":
+}
+if(["ArrowLeft","PageUp"].includes(e.key)){
 e.preventDefault();
 prevPage();
-break;
 }
 });
 
@@ -243,9 +244,25 @@ dragging=false;
 viewer.classList.remove("dragging");
 }
 
+/* MOUSE */
 viewer.onmousedown=e=>startDrag(e.clientX,e.clientY);
 window.onmousemove=e=>moveDrag(e.clientX,e.clientY);
 window.onmouseup=endDrag;
+
+/* 🔥 TOUCH FIX */
+viewer.addEventListener("touchstart", e=>{
+const t=e.touches[0];
+startDrag(t.clientX,t.clientY);
+},{passive:false});
+
+viewer.addEventListener("touchmove", e=>{
+if(!dragging) return;
+e.preventDefault();
+const t=e.touches[0];
+moveDrag(t.clientX,t.clientY);
+},{passive:false});
+
+viewer.addEventListener("touchend", endDrag);
 
 /* ZOOM */
 function zoom(dir){
@@ -305,8 +322,7 @@ wheelSum=0;
 
 },{passive:false});
 
-/* 🔥 SAFE REDRAW */
-
+/* SAFE REDRAW */
 async function safeRedraw(){
 if(!pdfDoc || rendering) return;
 
@@ -329,7 +345,6 @@ rendering=false;
 }
 }
 
-/* unified trigger */
 let redrawTimer;
 
 function triggerRedraw(){
@@ -341,7 +356,6 @@ window.addEventListener("resize", triggerRedraw);
 document.addEventListener("fullscreenchange", triggerRedraw);
 
 /* PDF */
-
 function spread(p){
 if(single()) return[p,null];
 if(p===1) return[1,null];
@@ -416,7 +430,6 @@ if(!isNaN(p)) go(p);
 };
 
 /* LOAD */
-
 pdfjsLib.getDocument(url).promise.then(async pdf=>{
 pdfDoc=pdf;
 
