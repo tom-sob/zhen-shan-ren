@@ -16,7 +16,6 @@ background:url(images/table_background.jpg);
 background-size:cover;
 }
 
-/* LOADER */
 #loader{
 position:fixed;
 inset:0;
@@ -40,7 +39,6 @@ from{transform:rotate(0);}
 to{transform:rotate(360deg);}
 }
 
-/* UI */
 #ui{
 position:fixed;
 top:10px;
@@ -68,7 +66,6 @@ cursor:pointer;
 font-size:20px;
 }
 
-/* NAV */
 .nav{
 position:fixed;
 top:50%;
@@ -84,7 +81,6 @@ text-shadow:0 2px 6px rgba(0,0,0,.85);
 #prev{left:10px;}
 #next{right:10px;}
 
-/* VIEW */
 #viewport{
 position:absolute;
 inset:0;
@@ -106,12 +102,9 @@ cursor:grab;
 cursor:grabbing !important;
 }
 
-/* BOOK SHADOW */
-#page2{
-box-shadow:
-inset 30px 0 50px rgba(0,0,0,.25),
-25px 0 45px rgba(0,0,0,.30),
-0 40px 80px rgba(0,0,0,.28);
+canvas{
+background:white;
+cursor:default;
 }
 
 #page1{
@@ -121,9 +114,11 @@ inset -40px 0 60px rgba(0,0,0,.35),
 0 40px 80px rgba(0,0,0,.28);
 }
 
-canvas{
-background:white;
-cursor:default;
+#page2{
+box-shadow:
+inset 30px 0 50px rgba(0,0,0,.25),
+25px 0 45px rgba(0,0,0,.30),
+0 40px 80px rgba(0,0,0,.28);
 }
 
 .hidden-ui{
@@ -170,6 +165,8 @@ let scale=1;
 let ox=0,oy=0;
 let dragging=false,sx=0,sy=0;
 
+let rendering=false; // 🔥 LOCK
+
 const viewer=document.getElementById("viewer");
 const c1=document.getElementById("page1");
 const c2=document.getElementById("page2");
@@ -177,8 +174,7 @@ const c2=document.getElementById("page2");
 const pageInput=document.getElementById("pageInput");
 const pageInfo=document.getElementById("pageInfo");
 
-/* ================= UI AUTO HIDE ================= */
-
+/* UI */
 const uiElements=[
 document.getElementById("ui"),
 document.getElementById("prev"),
@@ -196,8 +192,7 @@ hideTimer=setTimeout(()=>uiElements.forEach(el=>el.classList.add("hidden-ui")),5
 ["mousemove","mousedown","touchstart","keydown"]
 .forEach(e=>window.addEventListener(e,showUI));
 
-/* ================= FULLSCREEN ================= */
-
+/* FULLSCREEN */
 document.getElementById("fsBtn").onclick=()=>{
 if(!document.fullscreenElement)
 document.documentElement.requestFullscreen();
@@ -205,26 +200,11 @@ else
 document.exitFullscreen();
 };
 
-/* ================= FULLSCREEN FIX ================= */
-
-let fsTimer;
-
-document.addEventListener("fullscreenchange",()=>{
-clearTimeout(fsTimer);
-
-fsTimer=setTimeout(()=>{
-if(!pdfDoc) return;
-go(currentPage); // 🔥 jednotný redraw (stejný jako resize)
-},100);
-});
-
-
-/* ================= DRAG ================= */
-
+/* DRAG */
 function canDrag(){return scale>baseScale+0.01;}
 
 function startDrag(x,y){
-if(!canDrag()) return;
+if(!canDrag())return;
 dragging=true;
 sx=x-ox;
 sy=y-oy;
@@ -247,20 +227,7 @@ viewer.onmousedown=e=>startDrag(e.clientX,e.clientY);
 window.onmousemove=e=>moveDrag(e.clientX,e.clientY);
 window.onmouseup=endDrag;
 
-viewer.ontouchstart=e=>{
-const t=e.touches[0];
-startDrag(t.clientX,t.clientY);
-};
-
-viewer.ontouchmove=e=>{
-const t=e.touches[0];
-moveDrag(t.clientX,t.clientY);
-};
-
-viewer.ontouchend=endDrag;
-
-/* ================= ZOOM ================= */
-
+/* ZOOM */
 function zoom(dir){
 const prev=scale;
 const z=scale/baseScale;
@@ -280,8 +247,7 @@ draw();
 document.getElementById("zoomIn").onclick=()=>zoom(1);
 document.getElementById("zoomOut").onclick=()=>zoom(-1);
 
-/* ================= WHEEL ================= */
-
+/* WHEEL */
 let wheelSum=0,wheelTimer;
 
 function clampPage(p){
@@ -319,19 +285,45 @@ wheelSum=0;
 
 },{passive:false});
 
-/* ================= RESIZE FIX ================= */
+/* 🔥 SAFE REDRAW */
 
-let resizeTimer;
+async function safeRedraw(){
+if(!pdfDoc || rendering) return;
 
-window.addEventListener("resize",()=>{
-clearTimeout(resizeTimer);
+rendering=true;
 
-resizeTimer=setTimeout(()=>{
-if(pdfDoc) go(currentPage);
-},150);
-});
+try{
+const page=await pdfDoc.getPage(1);
 
-/* ================= PDF ================= */
+baseScale=await getFitScale(page);
+scale=baseScale;
+
+ox=0;
+oy=0;
+viewer.style.transform="translate(0,0)";
+
+await draw();
+
+} finally {
+rendering=false;
+}
+}
+
+/* 🔥 unified trigger */
+let redrawTimer;
+
+function triggerRedraw(){
+clearTimeout(redrawTimer);
+
+redrawTimer=setTimeout(()=>{
+safeRedraw();
+},200);
+}
+
+window.addEventListener("resize", triggerRedraw);
+document.addEventListener("fullscreenchange", triggerRedraw);
+
+/* PDF */
 
 function spread(p){
 if(single()) return[p,null];
@@ -411,7 +403,7 @@ let p=parseInt(e.target.value);
 if(!isNaN(p)) go(p);
 };
 
-/* ================= LOAD ================= */
+/* LOAD */
 
 pdfjsLib.getDocument(url).promise.then(async pdf=>{
 pdfDoc=pdf;
@@ -424,8 +416,7 @@ document.getElementById("loader").style.display="none";
 showUI();
 });
 
-/* ================= BLOCK RIGHT CLICK ================= */
-
+/* BLOCK RIGHT CLICK */
 document.addEventListener("contextmenu", e => e.preventDefault());
 
 </script>
