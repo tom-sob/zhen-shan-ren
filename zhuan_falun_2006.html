@@ -165,7 +165,7 @@ let scale=1;
 let ox=0,oy=0;
 let dragging=false,sx=0,sy=0;
 
-let rendering=false; // 🔥 LOCK
+let rendering=false;
 
 const viewer=document.getElementById("viewer");
 const c1=document.getElementById("page1");
@@ -199,6 +199,26 @@ document.documentElement.requestFullscreen();
 else
 document.exitFullscreen();
 };
+
+/* 🔥 KEYBOARD NAVIGATION (VRÁCENO) */
+window.addEventListener("keydown",e=>{
+if(document.activeElement===pageInput) return;
+
+switch(e.key){
+case "ArrowRight":
+case "PageDown":
+case " ":
+e.preventDefault();
+nextPage();
+break;
+
+case "ArrowLeft":
+case "PageUp":
+e.preventDefault();
+prevPage();
+break;
+}
+});
 
 /* DRAG */
 function canDrag(){return scale>baseScale+0.01;}
@@ -309,15 +329,12 @@ rendering=false;
 }
 }
 
-/* 🔥 unified trigger */
+/* unified trigger */
 let redrawTimer;
 
 function triggerRedraw(){
 clearTimeout(redrawTimer);
-
-redrawTimer=setTimeout(()=>{
-safeRedraw();
-},200);
+redrawTimer=setTimeout(()=>safeRedraw(),200);
 }
 
 window.addEventListener("resize", triggerRedraw);
@@ -334,26 +351,21 @@ return[p-1,p];
 
 async function getFitScale(page){
 const vp=page.getViewport({scale:1});
-
 const w=innerWidth*0.93;
 const h=innerHeight*0.93;
 
-if(single())
-return Math.min(w/vp.width,h/vp.height);
-
+if(single()) return Math.min(w/vp.width,h/vp.height);
 return Math.min(w/(vp.width*2),h/vp.height);
 }
 
 async function render(num,canvas){
 const page=await pdfDoc.getPage(num);
 const vp=page.getViewport({scale});
-
 const ctx=canvas.getContext("2d");
 const dpr=devicePixelRatio||1;
 
 canvas.width=vp.width*dpr;
 canvas.height=vp.height*dpr;
-
 canvas.style.width=vp.width+"px";
 canvas.style.height=vp.height+"px";
 
