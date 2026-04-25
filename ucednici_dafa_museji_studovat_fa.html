@@ -4,24 +4,137 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Učednídi Dafa musejí studovat Fa</title>
+
 <style>
-body{margin:0;height:100dvh;overflow:hidden;font-family:sans-serif;user-select:none;background:url(images/table_background.jpg);background-size:cover;}
-#loader{position:fixed;inset:0;display:flex;justify-content:center;align-items:center;z-index:200000;}
-.spinner{width:70px;height:70px;border:6px solid rgba(255,255,255,.2);border-top:6px solid white;border-radius:50%;animation:spin 1s linear infinite;}
-@keyframes spin{from{transform:rotate(0);}to{transform:rotate(360deg);}}
-#ui{position:fixed;top:10px;right:10px;background:rgba(0,0,0,.6);color:white;padding:10px;border-radius:8px;display:flex;align-items:center;gap:8px;z-index:10000;transition:.3s;}
-.ui-btn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);border-radius:6px;cursor:pointer;font-size:20px;}
-.nav{position:fixed;top:50%;transform:translateY(-50%);font-size:60px;color:white;cursor:pointer;padding:30px;z-index:99999;text-shadow:0 2px 6px rgba(0,0,0,.85);}
-#prev{left:10px;}#next{right:10px;}
-#viewport{position:absolute;inset:0;display:flex;justify-content:center;align-items:center;overflow:hidden;visibility:hidden;cursor:default;}
-#viewer{display:flex;gap:0;cursor:grab;}
-#viewer.dragging{cursor:grabbing !important;}
-canvas{background:white;cursor:default;}
-#page1{box-shadow: inset -40px 0 60px rgba(0,0,0,.35), -35px 0 55px rgba(0,0,0,.35), 0 40px 80px rgba(0,0,0,.28);}
-#page2{box-shadow: inset 30px 0 50px rgba(0,0,0,.25), 25px 0 45px rgba(0,0,0,.30), 0 40px 80px rgba(0,0,0,.28);}
-.hidden-ui{opacity:0;pointer-events:none;}
+body{
+margin:0;
+height:100dvh;
+overflow:hidden;
+font-family:sans-serif;
+user-select:none;
+background:url(images/table_background.jpg);
+background-size:cover;
+}
+
+/* 🔥 FIX PRO TOUCH */
+#viewer{
+touch-action:none;
+}
+
+/* LOADER */
+#loader{
+position:fixed;
+inset:0;
+display:flex;
+justify-content:center;
+align-items:center;
+z-index:200000;
+}
+
+.spinner{
+width:70px;
+height:70px;
+border:6px solid rgba(255,255,255,.2);
+border-top:6px solid white;
+border-radius:50%;
+animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+from{transform:rotate(0);}
+to{transform:rotate(360deg);}
+}
+
+/* UI */
+#ui{
+position:fixed;
+top:10px;
+right:10px;
+background:rgba(0,0,0,.6);
+color:white;
+padding:10px;
+border-radius:8px;
+display:flex;
+align-items:center;
+gap:8px;
+z-index:10000;
+transition:.3s;
+}
+
+.ui-btn{
+width:34px;
+height:34px;
+display:flex;
+align-items:center;
+justify-content:center;
+background:rgba(0,0,0,.6);
+border-radius:6px;
+cursor:pointer;
+font-size:20px;
+}
+
+.nav{
+position:fixed;
+top:50%;
+transform:translateY(-50%);
+font-size:60px;
+color:white;
+cursor:pointer;
+padding:30px;
+z-index:99999;
+text-shadow:0 2px 6px rgba(0,0,0,.85);
+}
+
+#prev{left:10px;}
+#next{right:10px;}
+
+#viewport{
+position:absolute;
+inset:0;
+display:flex;
+justify-content:center;
+align-items:center;
+overflow:hidden;
+visibility:hidden;
+cursor:default;
+}
+
+#viewer{
+display:flex;
+gap:0;
+cursor:grab;
+}
+
+#viewer.dragging{
+cursor:grabbing !important;
+}
+
+canvas{
+background:white;
+cursor:default;
+}
+
+#page1{
+box-shadow:
+inset -40px 0 60px rgba(0,0,0,.35),
+-35px 0 55px rgba(0,0,0,.35),
+0 40px 80px rgba(0,0,0,.28);
+}
+
+#page2{
+box-shadow:
+inset 30px 0 50px rgba(0,0,0,.25),
+25px 0 45px rgba(0,0,0,.30),
+0 40px 80px rgba(0,0,0,.28);
+}
+
+.hidden-ui{
+opacity:0;
+pointer-events:none;
+}
 </style>
 </head>
+
 <body>
 
 <div id="loader"><div class="spinner"></div></div>
@@ -37,26 +150,44 @@ canvas{background:white;cursor:default;}
 <div id="prev" class="nav">❮</div>
 <div id="next" class="nav">❯</div>
 
-<div id="viewport"><div id="viewer"><canvas id="page1"></canvas><canvas id="page2"></canvas></div></div>
+<div id="viewport">
+<div id="viewer">
+<canvas id="page1"></canvas>
+<canvas id="page2"></canvas>
+</div>
+</div>
 
 <script src="./js/pdf.min.js"></script>
+
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc="./js/pdf.worker.min.js";
 
 const url="ucednici_dafa_museji_studovat_fa.pdf";
+
 let pdfDoc;
 let currentPage=1;
 let baseScale=1;
 let scale=1;
+
 let ox=0,oy=0;
 let dragging=false,sx=0,sy=0;
+
+let rendering=false;
 
 const viewer=document.getElementById("viewer");
 const c1=document.getElementById("page1");
 const c2=document.getElementById("page2");
+
 const pageInput=document.getElementById("pageInput");
 const pageInfo=document.getElementById("pageInfo");
-const uiElements=[document.getElementById("ui"),document.getElementById("prev"),document.getElementById("next")];
+
+/* UI */
+const uiElements=[
+document.getElementById("ui"),
+document.getElementById("prev"),
+document.getElementById("next")
+];
+
 let hideTimer;
 
 function showUI(){
@@ -65,79 +196,178 @@ clearTimeout(hideTimer);
 hideTimer=setTimeout(()=>uiElements.forEach(el=>el.classList.add("hidden-ui")),5000);
 }
 
-["mousemove","mousedown","touchstart","keydown"].forEach(e=>window.addEventListener(e,showUI));
+["mousemove","mousedown","touchstart","keydown"]
+.forEach(e=>window.addEventListener(e,showUI));
 
+/* FULLSCREEN */
 document.getElementById("fsBtn").onclick=()=>{
-if(!document.fullscreenElement)document.documentElement.requestFullscreen();
-else document.exitFullscreen();
+if(!document.fullscreenElement)
+document.documentElement.requestFullscreen();
+else
+document.exitFullscreen();
 };
 
-function canDrag(){return scale>baseScale+0.01;}
-function startDrag(x,y){if(!canDrag())return;dragging=true;sx=x-ox;sy=y-oy;viewer.classList.add("dragging");}
-function moveDrag(x,y){if(!dragging)return;ox=x-sx;oy=y-sy;viewer.style.transform=`translate(${ox}px,${oy}px)`;}
-function endDrag(){dragging=false;viewer.classList.remove("dragging");}
+/* KEYBOARD */
+window.addEventListener("keydown",e=>{
+if(document.activeElement===pageInput) return;
 
+if(["ArrowRight","PageDown"," "].includes(e.key)){
+e.preventDefault();
+nextPage();
+}
+if(["ArrowLeft","PageUp"].includes(e.key)){
+e.preventDefault();
+prevPage();
+}
+});
+
+/* DRAG */
+function canDrag(){return scale>baseScale+0.01;}
+
+function startDrag(x,y){
+if(!canDrag())return;
+dragging=true;
+sx=x-ox;
+sy=y-oy;
+viewer.classList.add("dragging");
+}
+
+function moveDrag(x,y){
+if(!dragging)return;
+ox=x-sx;
+oy=y-sy;
+viewer.style.transform=`translate(${ox}px,${oy}px)`;
+}
+
+function endDrag(){
+dragging=false;
+viewer.classList.remove("dragging");
+}
+
+/* MOUSE */
 viewer.onmousedown=e=>startDrag(e.clientX,e.clientY);
 window.onmousemove=e=>moveDrag(e.clientX,e.clientY);
 window.onmouseup=endDrag;
-viewer.ontouchstart=e=>startDrag(e.touches[0].clientX,e.touches[0].clientY);
-viewer.ontouchmove=e=>moveDrag(e.touches[0].clientX,e.touches[0].clientY);
-viewer.ontouchend=endDrag;
 
-function zoom(dir){const prev=scale;const z=scale/baseScale;scale=baseScale*(dir>0?z+0.1:Math.max(1,z-0.1));const ratio=scale/prev;ox*=ratio;oy*=ratio;viewer.style.transform=`translate(${ox}px,${oy}px)`;draw();}
+/* 🔥 TOUCH FIX */
+viewer.addEventListener("touchstart", e=>{
+const t=e.touches[0];
+startDrag(t.clientX,t.clientY);
+},{passive:false});
+
+viewer.addEventListener("touchmove", e=>{
+if(!dragging) return;
+e.preventDefault();
+const t=e.touches[0];
+moveDrag(t.clientX,t.clientY);
+},{passive:false});
+
+viewer.addEventListener("touchend", endDrag);
+
+/* ZOOM */
+function zoom(dir){
+const prev=scale;
+const z=scale/baseScale;
+
+scale=baseScale*(dir>0?z+0.1:Math.max(1,z-0.1));
+
+const ratio=scale/prev;
+
+ox*=ratio;
+oy*=ratio;
+
+viewer.style.transform=`translate(${ox}px,${oy}px)`;
+
+draw();
+}
 
 document.getElementById("zoomIn").onclick=()=>zoom(1);
 document.getElementById("zoomOut").onclick=()=>zoom(-1);
 
+/* WHEEL */
 let wheelSum=0,wheelTimer;
-function clampPage(p){return Math.max(1,Math.min(pdfDoc.numPages,p));}
-const single=()=>innerWidth<1100;
-function step(){return single()?1:2;}
 
-function spread(p){
-if(single()) return [p,null];
-if(p===1) return [1,null];
-if(p%2===0) return [p,p+1];
-return [p-1,p];
+function clampPage(p){
+return Math.max(1,Math.min(pdfDoc.numPages,p));
 }
 
+const single=()=>innerWidth<1100;
+const step=()=>single()?1:2;
+
 window.addEventListener("wheel",e=>{
-  e.preventDefault();
-  wheelSum+=e.deltaY;
-  clearTimeout(wheelTimer);
-  wheelTimer=setTimeout(()=>{
-    const abs=Math.abs(wheelSum);
-    const baseStep=120;
-    let pages=Math.max(1,Math.floor(abs/baseStep));
-    let target=currentPage;
-    const delta=pages*step();
-    if(wheelSum>0) target+=delta;
-    else target-=delta;
-    target=clampPage(target);
-    if(target!==currentPage) go(target);
-    wheelSum=0;
-  },80);
+e.preventDefault();
+
+wheelSum+=e.deltaY;
+
+clearTimeout(wheelTimer);
+
+wheelTimer=setTimeout(()=>{
+const abs=Math.abs(wheelSum);
+const baseStep=120;
+
+let pages=Math.max(1,Math.floor(abs/baseStep));
+let target=currentPage;
+
+const delta=pages*step();
+
+if(wheelSum>0) target+=delta;
+else target-=delta;
+
+target=clampPage(target);
+
+if(target!==currentPage) go(target);
+
+wheelSum=0;
+},80);
+
 },{passive:false});
 
-let resizeTimer;
-window.addEventListener("resize",()=>{
-clearTimeout(resizeTimer);
-resizeTimer=setTimeout(()=>{if(pdfDoc)go(currentPage);},150);
-});
+/* SAFE REDRAW */
+async function safeRedraw(){
+if(!pdfDoc || rendering) return;
 
-window.addEventListener("keydown",e=>{
-if(document.activeElement===pageInput)return;
-if(["ArrowRight","PageDown"," "].includes(e.key)){e.preventDefault();nextPage();}
-if(["ArrowLeft","PageUp"].includes(e.key)){e.preventDefault();prevPage();}
-});
+rendering=true;
 
-// 🚫 DISABLE RIGHT CLICK
-document.addEventListener("contextmenu",e=>e.preventDefault());
+try{
+const page=await pdfDoc.getPage(1);
+
+baseScale=await getFitScale(page);
+scale=baseScale;
+
+ox=0;
+oy=0;
+viewer.style.transform="translate(0,0)";
+
+await draw();
+
+} finally {
+rendering=false;
+}
+}
+
+let redrawTimer;
+
+function triggerRedraw(){
+clearTimeout(redrawTimer);
+redrawTimer=setTimeout(()=>safeRedraw(),200);
+}
+
+window.addEventListener("resize", triggerRedraw);
+document.addEventListener("fullscreenchange", triggerRedraw);
+
+/* PDF */
+function spread(p){
+if(single()) return[p,null];
+if(p===1) return[1,null];
+if(p%2===0) return[p,p+1];
+return[p-1,p];
+}
 
 async function getFitScale(page){
 const vp=page.getViewport({scale:1});
 const w=innerWidth*0.93;
 const h=innerHeight*0.93;
+
 if(single()) return Math.min(w/vp.width,h/vp.height);
 return Math.min(w/(vp.width*2),h/vp.height);
 }
@@ -147,35 +377,49 @@ const page=await pdfDoc.getPage(num);
 const vp=page.getViewport({scale});
 const ctx=canvas.getContext("2d");
 const dpr=devicePixelRatio||1;
+
 canvas.width=vp.width*dpr;
 canvas.height=vp.height*dpr;
 canvas.style.width=vp.width+"px";
 canvas.style.height=vp.height+"px";
+
 ctx.setTransform(1,0,0,1,0,0);
 ctx.scale(dpr,dpr);
+
 await page.render({canvasContext:ctx,viewport:vp}).promise;
 }
 
 async function draw(){
 pageInfo.textContent=`${currentPage} / ${pdfDoc.numPages}`;
 pageInput.value=currentPage;
+
 const [l,r]=spread(currentPage);
+
 await render(l,c1);
-if(!single()&&r&&r<=pdfDoc.numPages){c2.style.display="block";await render(r,c2);}else c2.style.display="none";
+
+if(!single() && r && r<=pdfDoc.numPages){
+c2.style.display="block";
+await render(r,c2);
+}else{
+c2.style.display="none";
+}
 }
 
 async function go(p){
 currentPage=clampPage(p);
+
 const page=await pdfDoc.getPage(1);
 baseScale=await getFitScale(page);
 scale=baseScale;
+
 ox=oy=0;
 viewer.style.transform="translate(0,0)";
+
 await draw();
 }
 
-function nextPage(){go(clampPage(currentPage+step()));}
-function prevPage(){go(clampPage(currentPage-step()));}
+function nextPage(){go(currentPage+step());}
+function prevPage(){go(currentPage-step());}
 
 document.getElementById("next").onclick=nextPage;
 document.getElementById("prev").onclick=prevPage;
@@ -185,13 +429,21 @@ let p=parseInt(e.target.value);
 if(!isNaN(p)) go(p);
 };
 
+/* LOAD */
 pdfjsLib.getDocument(url).promise.then(async pdf=>{
 pdfDoc=pdf;
+
 await go(1);
+
 document.getElementById("viewport").style.visibility="visible";
 document.getElementById("loader").style.display="none";
+
 showUI();
 });
+
+/* BLOCK RIGHT CLICK */
+document.addEventListener("contextmenu", e => e.preventDefault());
+
 </script>
 </body>
 </html>
