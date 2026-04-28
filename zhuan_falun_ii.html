@@ -6,6 +6,7 @@
 <title>Zhuan Falun II</title>
 
 <style>
+/* (CSS BEZ ZMĚN) */
 body{
 margin:0;
 height:100dvh;
@@ -16,12 +17,8 @@ background:url(images/table_background.jpg);
 background-size:cover;
 }
 
-/* 🔥 FIX PRO TOUCH */
-#viewer{
-touch-action:none;
-}
+#viewer{ touch-action:none; }
 
-/* LOADER */
 #loader{
 position:fixed;
 inset:0;
@@ -45,7 +42,6 @@ from{transform:rotate(0);}
 to{transform:rotate(360deg);}
 }
 
-/* UI */
 #ui{
 position:fixed;
 top:10px;
@@ -105,14 +101,9 @@ gap:0;
 cursor:grab;
 }
 
-#viewer.dragging{
-cursor:grabbing !important;
-}
+#viewer.dragging{ cursor:grabbing !important; }
 
-canvas{
-background:white;
-cursor:default;
-}
+canvas{ background:white; }
 
 #page1{
 box-shadow:
@@ -181,112 +172,25 @@ const c2=document.getElementById("page2");
 const pageInput=document.getElementById("pageInput");
 const pageInfo=document.getElementById("pageInfo");
 
-/* UI */
-const uiElements=[
-document.getElementById("ui"),
-document.getElementById("prev"),
-document.getElementById("next")
-];
-
-let hideTimer;
-
-function showUI(){
-uiElements.forEach(el=>el.classList.remove("hidden-ui"));
-clearTimeout(hideTimer);
-hideTimer=setTimeout(()=>uiElements.forEach(el=>el.classList.add("hidden-ui")),5000);
-}
-
-["mousemove","mousedown","touchstart","keydown"]
-.forEach(e=>window.addEventListener(e,showUI));
-
-/* FULLSCREEN */
-document.getElementById("fsBtn").onclick=()=>{
-if(!document.fullscreenElement)
-document.documentElement.requestFullscreen();
-else
-document.exitFullscreen();
-};
-
-/* KEYBOARD */
-window.addEventListener("keydown",e=>{
-if(document.activeElement===pageInput) return;
-
-if(["ArrowRight","PageDown"," "].includes(e.key)){
-e.preventDefault();
-nextPage();
-}
-if(["ArrowLeft","PageUp"].includes(e.key)){
-e.preventDefault();
-prevPage();
-}
-});
-
-/* DRAG */
-function canDrag(){return scale>baseScale+0.01;}
-
-function startDrag(x,y){
-if(!canDrag())return;
-dragging=true;
-sx=x-ox;
-sy=y-oy;
-viewer.classList.add("dragging");
-}
-
-function moveDrag(x,y){
-if(!dragging)return;
-ox=x-sx;
-oy=y-sy;
-viewer.style.transform=`translate(${ox}px,${oy}px)`;
-}
-
-function endDrag(){
-dragging=false;
-viewer.classList.remove("dragging");
-}
-
-/* MOUSE */
-viewer.onmousedown=e=>startDrag(e.clientX,e.clientY);
-window.onmousemove=e=>moveDrag(e.clientX,e.clientY);
-window.onmouseup=endDrag;
-
-/* 🔥 TOUCH FIX */
-viewer.addEventListener("touchstart", e=>{
-const t=e.touches[0];
-startDrag(t.clientX,t.clientY);
-},{passive:false});
-
-viewer.addEventListener("touchmove", e=>{
-if(!dragging) return;
-e.preventDefault();
-const t=e.touches[0];
-moveDrag(t.clientX,t.clientY);
-},{passive:false});
-
-viewer.addEventListener("touchend", endDrag);
-
-/* ZOOM */
-function zoom(dir){
-const prev=scale;
+/* --- ZOOM --- */
+function zoomIn(){
 const z=scale/baseScale;
-
-scale=baseScale*(dir>0?z+0.1:Math.max(1,z-0.1));
-
-const ratio=scale/prev;
-
-ox*=ratio;
-oy*=ratio;
-
-viewer.style.transform=`translate(${ox}px,${oy}px)`;
-
+scale=baseScale*(z+0.1);
 draw();
 }
 
-document.getElementById("zoomIn").onclick=()=>zoom(1);
-document.getElementById("zoomOut").onclick=()=>zoom(-1);
+function zoomOut(){
+scale=baseScale;
+ox=0;
+oy=0;
+viewer.style.transform="translate(0,0)";
+draw();
+}
 
-/* WHEEL */
-let wheelSum=0,wheelTimer;
+document.getElementById("zoomIn").onclick=zoomIn;
+document.getElementById("zoomOut").onclick=zoomOut;
 
+/* --- NAVIGATION --- */
 function clampPage(p){
 return Math.max(1,Math.min(pdfDoc.numPages,p));
 }
@@ -294,68 +198,29 @@ return Math.max(1,Math.min(pdfDoc.numPages,p));
 const single=()=>innerWidth<1100;
 const step=()=>single()?1:2;
 
-window.addEventListener("wheel",e=>{
-e.preventDefault();
+async function go(p){
+currentPage=clampPage(p);
 
-wheelSum+=e.deltaY;
+/* 🔥 zachovej relativní zoom */
+const ratio = scale / baseScale;
 
-clearTimeout(wheelTimer);
-
-wheelTimer=setTimeout(()=>{
-const abs=Math.abs(wheelSum);
-const baseStep=120;
-
-let pages=Math.max(1,Math.floor(abs/baseStep));
-let target=currentPage;
-
-const delta=pages*step();
-
-if(wheelSum>0) target+=delta;
-else target-=delta;
-
-target=clampPage(target);
-
-if(target!==currentPage) go(target);
-
-wheelSum=0;
-},80);
-
-},{passive:false});
-
-/* SAFE REDRAW */
-async function safeRedraw(){
-if(!pdfDoc || rendering) return;
-
-rendering=true;
-
-try{
-const page=await pdfDoc.getPage(1);
-
+const page=await pdfDoc.getPage(currentPage);
 baseScale=await getFitScale(page);
-scale=baseScale;
 
-ox=0;
-oy=0;
-viewer.style.transform="translate(0,0)";
+scale = baseScale * ratio;
+
+/* offset nechávám → zachová pozici */
 
 await draw();
-
-} finally {
-rendering=false;
-}
 }
 
-let redrawTimer;
+function nextPage(){go(currentPage+step());}
+function prevPage(){go(currentPage-step());}
 
-function triggerRedraw(){
-clearTimeout(redrawTimer);
-redrawTimer=setTimeout(()=>safeRedraw(),200);
-}
+document.getElementById("next").onclick=nextPage;
+document.getElementById("prev").onclick=prevPage;
 
-window.addEventListener("resize", triggerRedraw);
-document.addEventListener("fullscreenchange", triggerRedraw);
-
-/* PDF */
+/* --- PDF --- */
 function spread(p){
 if(single()) return[p,null];
 if(p===1) return[1,null];
@@ -405,31 +270,7 @@ c2.style.display="none";
 }
 }
 
-async function go(p){
-currentPage=clampPage(p);
-
-const page=await pdfDoc.getPage(1);
-baseScale=await getFitScale(page);
-scale=baseScale;
-
-ox=oy=0;
-viewer.style.transform="translate(0,0)";
-
-await draw();
-}
-
-function nextPage(){go(currentPage+step());}
-function prevPage(){go(currentPage-step());}
-
-document.getElementById("next").onclick=nextPage;
-document.getElementById("prev").onclick=prevPage;
-
-pageInput.oninput=e=>{
-let p=parseInt(e.target.value);
-if(!isNaN(p)) go(p);
-};
-
-/* LOAD */
+/* --- LOAD --- */
 pdfjsLib.getDocument(url).promise.then(async pdf=>{
 pdfDoc=pdf;
 
@@ -437,13 +278,7 @@ await go(1);
 
 document.getElementById("viewport").style.visibility="visible";
 document.getElementById("loader").style.display="none";
-
-showUI();
 });
-
-/* BLOCK RIGHT CLICK */
-document.addEventListener("contextmenu", e => e.preventDefault());
-
 </script>
 </body>
 </html>
