@@ -171,7 +171,20 @@ const c2=document.getElementById("page2");
 const pageInput=document.getElementById("pageInput");
 const pageInfo=document.getElementById("pageInfo");
 
-/* 🔥 TRANSFORM */
+/* 🔥 FULLSCREEN FIX */
+document.getElementById("fsBtn").onclick=()=>{
+const el=document.documentElement;
+
+if(!document.fullscreenElement && !document.webkitFullscreenElement){
+if(el.requestFullscreen) el.requestFullscreen();
+else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+}else{
+if(document.exitFullscreen) document.exitFullscreen();
+else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
+}
+};
+
+/* TRANSFORM */
 function updateTransform(){
 viewer.style.transform = `translate(${ox}px, ${oy}px) scale(${scale/baseScale})`;
 }
@@ -203,6 +216,7 @@ viewer.onmousedown=e=>startDrag(e.clientX,e.clientY);
 window.onmousemove=e=>moveDrag(e.clientX,e.clientY);
 window.onmouseup=endDrag;
 
+/* TOUCH */
 viewer.addEventListener("touchstart", e=>{
 const t=e.touches[0];
 startDrag(t.clientX,t.clientY);
@@ -284,7 +298,7 @@ return Math.min(w/(vp.width*2),h/vp.height);
 
 async function render(num,canvas){
 const page=await pdfDoc.getPage(num);
-const vp=page.getViewport({scale:baseScale}); /* 🔥 jen baseScale */
+const vp=page.getViewport({scale:baseScale});
 const ctx=canvas.getContext("2d");
 const dpr=devicePixelRatio||1;
 
