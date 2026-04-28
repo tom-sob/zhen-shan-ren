@@ -6,7 +6,6 @@
 <title>Zhuan Falun II</title>
 
 <style>
-/* (CSS BEZ ZMĚN) */
 body{
 margin:0;
 height:100dvh;
@@ -99,6 +98,7 @@ cursor:default;
 display:flex;
 gap:0;
 cursor:grab;
+transform-origin:0 0;
 }
 
 #viewer.dragging{ cursor:grabbing !important; }
@@ -157,13 +157,12 @@ const url="zhuan_falun_ii.pdf";
 
 let pdfDoc;
 let currentPage=1;
+
 let baseScale=1;
 let scale=1;
 
 let ox=0,oy=0;
 let dragging=false,sx=0,sy=0;
-
-let rendering=false;
 
 const viewer=document.getElementById("viewer");
 const c1=document.getElementById("page1");
@@ -172,10 +171,57 @@ const c2=document.getElementById("page2");
 const pageInput=document.getElementById("pageInput");
 const pageInfo=document.getElementById("pageInfo");
 
-/* --- ZOOM --- */
+/* 🔥 TRANSFORM */
+function updateTransform(){
+viewer.style.transform = `translate(${ox}px, ${oy}px) scale(${scale/baseScale})`;
+}
+
+/* DRAG */
+function canDrag(){return scale>baseScale+0.01;}
+
+function startDrag(x,y){
+if(!canDrag())return;
+dragging=true;
+sx=x-ox;
+sy=y-oy;
+viewer.classList.add("dragging");
+}
+
+function moveDrag(x,y){
+if(!dragging)return;
+ox=x-sx;
+oy=y-sy;
+updateTransform();
+}
+
+function endDrag(){
+dragging=false;
+viewer.classList.remove("dragging");
+}
+
+viewer.onmousedown=e=>startDrag(e.clientX,e.clientY);
+window.onmousemove=e=>moveDrag(e.clientX,e.clientY);
+window.onmouseup=endDrag;
+
+viewer.addEventListener("touchstart", e=>{
+const t=e.touches[0];
+startDrag(t.clientX,t.clientY);
+},{passive:false});
+
+viewer.addEventListener("touchmove", e=>{
+if(!dragging) return;
+e.preventDefault();
+const t=e.touches[0];
+moveDrag(t.clientX,t.clientY);
+},{passive:false});
+
+viewer.addEventListener("touchend", endDrag);
+
+/* ZOOM */
 function zoomIn(){
 const z=scale/baseScale;
 scale=baseScale*(z+0.1);
+updateTransform();
 draw();
 }
 
@@ -183,14 +229,14 @@ function zoomOut(){
 scale=baseScale;
 ox=0;
 oy=0;
-viewer.style.transform="translate(0,0)";
+updateTransform();
 draw();
 }
 
 document.getElementById("zoomIn").onclick=zoomIn;
 document.getElementById("zoomOut").onclick=zoomOut;
 
-/* --- NAVIGATION --- */
+/* NAV */
 function clampPage(p){
 return Math.max(1,Math.min(pdfDoc.numPages,p));
 }
@@ -201,15 +247,14 @@ const step=()=>single()?1:2;
 async function go(p){
 currentPage=clampPage(p);
 
-/* 🔥 zachovej relativní zoom */
-const ratio = scale / baseScale;
+const ratio = scale/baseScale;
 
 const page=await pdfDoc.getPage(currentPage);
 baseScale=await getFitScale(page);
 
-scale = baseScale * ratio;
+scale=baseScale*ratio;
 
-/* offset nechávám → zachová pozici */
+updateTransform();
 
 await draw();
 }
@@ -220,7 +265,7 @@ function prevPage(){go(currentPage-step());}
 document.getElementById("next").onclick=nextPage;
 document.getElementById("prev").onclick=prevPage;
 
-/* --- PDF --- */
+/* PDF */
 function spread(p){
 if(single()) return[p,null];
 if(p===1) return[1,null];
@@ -239,7 +284,7 @@ return Math.min(w/(vp.width*2),h/vp.height);
 
 async function render(num,canvas){
 const page=await pdfDoc.getPage(num);
-const vp=page.getViewport({scale});
+const vp=page.getViewport({scale:baseScale}); /* 🔥 jen baseScale */
 const ctx=canvas.getContext("2d");
 const dpr=devicePixelRatio||1;
 
@@ -270,7 +315,7 @@ c2.style.display="none";
 }
 }
 
-/* --- LOAD --- */
+/* LOAD */
 pdfjsLib.getDocument(url).promise.then(async pdf=>{
 pdfDoc=pdf;
 
