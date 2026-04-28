@@ -91,33 +91,17 @@ justify-content:center;
 align-items:center;
 overflow:hidden;
 visibility:hidden;
-cursor:default;
 }
 
 #viewer{
 display:flex;
 gap:0;
 cursor:grab;
-transform-origin:0 0;
 }
 
 #viewer.dragging{ cursor:grabbing !important; }
 
 canvas{ background:white; }
-
-#page1{
-box-shadow:
-inset -40px 0 60px rgba(0,0,0,.35),
--35px 0 55px rgba(0,0,0,.35),
-0 40px 80px rgba(0,0,0,.28);
-}
-
-#page2{
-box-shadow:
-inset 30px 0 50px rgba(0,0,0,.25),
-25px 0 45px rgba(0,0,0,.30),
-0 40px 80px rgba(0,0,0,.28);
-}
 
 .hidden-ui{
 opacity:0;
@@ -157,12 +141,13 @@ const url="zhuan_falun_ii.pdf";
 
 let pdfDoc;
 let currentPage=1;
-
 let baseScale=1;
 let scale=1;
 
 let ox=0,oy=0;
 let dragging=false,sx=0,sy=0;
+
+let rendering=false;
 
 const viewer=document.getElementById("viewer");
 const c1=document.getElementById("page1");
@@ -171,22 +156,16 @@ const c2=document.getElementById("page2");
 const pageInput=document.getElementById("pageInput");
 const pageInfo=document.getElementById("pageInfo");
 
-/* 🔥 FULLSCREEN FIX */
+/* FULLSCREEN */
 document.getElementById("fsBtn").onclick=()=>{
-const el=document.documentElement;
-
-if(!document.fullscreenElement && !document.webkitFullscreenElement){
-if(el.requestFullscreen) el.requestFullscreen();
-else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-}else{
-if(document.exitFullscreen) document.exitFullscreen();
-else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
-}
+if(!document.fullscreenElement)
+document.documentElement.requestFullscreen();
+else document.exitFullscreen();
 };
 
 /* TRANSFORM */
 function updateTransform(){
-viewer.style.transform = `translate(${ox}px, ${oy}px) scale(${scale/baseScale})`;
+viewer.style.transform=`translate(${ox}px,${oy}px)`;
 }
 
 /* DRAG */
@@ -216,25 +195,19 @@ viewer.onmousedown=e=>startDrag(e.clientX,e.clientY);
 window.onmousemove=e=>moveDrag(e.clientX,e.clientY);
 window.onmouseup=endDrag;
 
-/* TOUCH */
-viewer.addEventListener("touchstart", e=>{
-const t=e.touches[0];
-startDrag(t.clientX,t.clientY);
-},{passive:false});
-
-viewer.addEventListener("touchmove", e=>{
-if(!dragging) return;
-e.preventDefault();
-const t=e.touches[0];
-moveDrag(t.clientX,t.clientY);
-},{passive:false});
-
-viewer.addEventListener("touchend", endDrag);
-
-/* ZOOM */
-function zoomIn(){
+/* ZOOM NA STŘED */
+function zoom(dir){
+const prev=scale;
 const z=scale/baseScale;
-scale=baseScale*(z+0.1);
+
+scale=baseScale*(dir>0?z+0.1:Math.max(1,z-0.1));
+
+const cx=innerWidth/2;
+const cy=innerHeight/2;
+
+ox = cx - (cx-ox)*(scale/prev);
+oy = cy - (cy-oy)*(scale/prev);
+
 updateTransform();
 draw();
 }
@@ -247,7 +220,7 @@ updateTransform();
 draw();
 }
 
-document.getElementById("zoomIn").onclick=zoomIn;
+document.getElementById("zoomIn").onclick=()=>zoom(1);
 document.getElementById("zoomOut").onclick=zoomOut;
 
 /* NAV */
@@ -261,7 +234,7 @@ const step=()=>single()?1:2;
 async function go(p){
 currentPage=clampPage(p);
 
-const ratio = scale/baseScale;
+const ratio=scale/baseScale;
 
 const page=await pdfDoc.getPage(currentPage);
 baseScale=await getFitScale(page);
@@ -269,15 +242,41 @@ baseScale=await getFitScale(page);
 scale=baseScale*ratio;
 
 updateTransform();
-
 await draw();
 }
 
 function nextPage(){go(currentPage+step());}
 function prevPage(){go(currentPage-step());}
 
-document.getElementById("next").onclick=nextPage;
-document.getElementById("prev").onclick=prevPage;
+/* RESIZE FIX */
+async function safeRedraw(){
+if(!pdfDoc || rendering) return;
+
+rendering=true;
+
+try{
+const ratio=scale/baseScale;
+
+const page=await pdfDoc.getPage(currentPage);
+baseScale=await getFitScale(page);
+
+scale=baseScale*ratio;
+
+ox=0; oy=0;
+
+updateTransform();
+await draw();
+
+}finally{
+rendering=false;
+}
+}
+
+let resizeTimer;
+window.addEventListener("resize",()=>{
+clearTimeout(resizeTimer);
+resizeTimer=setTimeout(safeRedraw,200);
+});
 
 /* PDF */
 function spread(p){
@@ -298,7 +297,7 @@ return Math.min(w/(vp.width*2),h/vp.height);
 
 async function render(num,canvas){
 const page=await pdfDoc.getPage(num);
-const vp=page.getViewport({scale:baseScale});
+const vp=page.getViewport({scale});
 const ctx=canvas.getContext("2d");
 const dpr=devicePixelRatio||1;
 
