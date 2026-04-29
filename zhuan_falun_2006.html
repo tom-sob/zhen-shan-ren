@@ -249,7 +249,7 @@ viewer.onmousedown=e=>startDrag(e.clientX,e.clientY);
 window.onmousemove=e=>moveDrag(e.clientX,e.clientY);
 window.onmouseup=endDrag;
 
-/* 🔥 TOUCH FIX */
+/* TOUCH */
 viewer.addEventListener("touchstart", e=>{
 const t=e.touches[0];
 startDrag(t.clientX,t.clientY);
@@ -281,8 +281,23 @@ viewer.style.transform=`translate(${ox}px,${oy}px)`;
 draw();
 }
 
+/* 🔥 RESET ZOOM */
+async function resetZoom(){
+if(!pdfDoc) return;
+
+const page=await pdfDoc.getPage(1);
+baseScale=await getFitScale(page);
+scale=baseScale;
+
+ox=0;
+oy=0;
+viewer.style.transform="translate(0,0)";
+
+draw();
+}
+
 document.getElementById("zoomIn").onclick=()=>zoom(1);
-document.getElementById("zoomOut").onclick=()=>zoom(-1);
+document.getElementById("zoomOut").onclick=resetZoom;
 
 /* WHEEL */
 let wheelSum=0,wheelTimer;
@@ -405,16 +420,9 @@ c2.style.display="none";
 }
 }
 
+/* 🔥 UPRAVENÉ — BEZ RESETU ZOOMU */
 async function go(p){
 currentPage=clampPage(p);
-
-const page=await pdfDoc.getPage(1);
-baseScale=await getFitScale(page);
-scale=baseScale;
-
-ox=oy=0;
-viewer.style.transform="translate(0,0)";
-
 await draw();
 }
 
@@ -434,6 +442,9 @@ pdfjsLib.getDocument(url).promise.then(async pdf=>{
 pdfDoc=pdf;
 
 await go(1);
+
+/* 🔥 DŮLEŽITÉ – správné přizpůsobení při startu */
+await safeRedraw();
 
 document.getElementById("viewport").style.visibility="visible";
 document.getElementById("loader").style.display="none";
