@@ -443,6 +443,9 @@ pdfDoc=pdf;
 
 await go(1);
 
+/* 🔥 DŮLEŽITÉ – správné přizpůsobení při startu */
+await safeRedraw();
+
 document.getElementById("viewport").style.visibility="visible";
 document.getElementById("loader").style.display="none";
 
