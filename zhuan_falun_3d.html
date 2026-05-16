@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Vyučování Fa - Professional Edition</title>
+<style>
+    body {
+        margin: 0; height: 100dvh; overflow: hidden; font-family: sans-serif;
+        background: #1a1a1a url(images/table_background.jpg) center/cover;
+        display: flex; justify-content: center; align-items: center;
+        user-select: none; -webkit-user-select: none;
+    }
+
+    /* Načítací kolečko bez textu a pozadí */
+    #loader {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        z-index: 100000; transition: opacity 0.3s ease;
+    }
+    .spinner {
+        width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.1);
+        border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #book-viewport {
+        position: absolute; width: 100vw; height: 100vh;
+        display: flex; justify-content: center; align-items: center;
+        perspective: 3000px; overflow: hidden; z-index: 10;
+    }
+
+    #book {
+        position: absolute; top: 50%; left: 50%;
+        transform-style: preserve-3d;
+        opacity: 0; /* Skryto na začátku */
+        transition: opacity 0.8s ease; /* Plynulé objevení po načtení */
+    }
+
+    .sheet {
+        position: absolute; width: 50%; height: 100%;
+        top: 0; left: 50%; transform-style: preserve-3d;
+        transition: transform 0.6s cubic-bezier(0.2, 0, 0.2, 1);
+        transform-origin: left center;
+        will-change: transform; /* "Doostření" po dotočení */
+    }
+
+    .page-side {
+        position: absolute; inset: 0; backface-visibility: hidden;
+        -webkit-backface-visibility: hidden; background: #ffffff;
+        box-shadow: inset 0 0 50px rgba(0,0,0,0.05); /* Jemný stín hřbetu */
+    }
+
+    canvas { width: 100%; height: 100%; display: block; }
+    canvas.rendering { visibility: hidden; }
+
+    .page-front::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to right, rgba(0,0,0,0.05) 0%, transparent 10%); }
+    .page-back { transform: rotateY(180deg); display: block; }
+
+    /* UI Skrývání */
+    #ui, .nav { transition: opacity 0.5s ease, visibility 0.5s; opacity: 1; visibility: visible; z-index: 99999; }
+    .ui-hidden { opacity: 0 !important; visibility: hidden !important; cursor: none !important; }
+
+    #ui { position: fixed; top: 15px; right: 15px; background: rgba(0,0,0,0.8); color: #fff; padding: 12px; border-radius: 10px; display: flex; align-items: center; gap: 10px; }
+    .ui-btn { width: 36px; height: 36px; background: rgba(255,255,255,0.1); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .nav { position: fixed; top: 50%; transform: translateY(-50%); font-size: 60px; color: white; cursor: pointer; padding: 60px 40px; text-shadow: 0 0 15px rgba(0,0,0,0.8); }
+    #prev { left: 10px; } #next { right: 10px; }
+    input#pageInput { width: 60px; text-align: center; border: none; border-radius: 4px; font-weight: bold; height: 25px; outline: none; }
+
+    @media (orientation: portrait) {
+        .sheet { transition: none !important; left: 0 !important; width: 100% !important; }
+        .page-back { transform: none !important; }
+    }
+</style>
+</head>
+<body>
+
+<div id="loader"><div class="spinner"></div></div>
+
+<div id="ui" class="ui-hidden"> <div id="fsBtn" class="ui-btn">⛶</div>
+    <div id="zoomOut" class="ui-btn">−</div>
+    <div id="zoomIn" class="ui-btn">+</div>
+    <span id="pageInfo">1 / ?</span>
+    <input id="pageInput" type="number" min="1">
+</div>
+
+<div id="prev" class="nav ui-hidden">❮</div>
+<div id="next" class="nav ui-hidden">❯</div>
+
+<div id="book-viewport">
+    <div id="book"></div>
+</div>
+
+<script src="./js/pdf.min.js"></script>
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "./js/pdf.worker.min.js";
+    const url = "zhuan_falun.pdf";
+    
+    let pdfDoc = null, currentPage = 1, currentScale = 1, pdfRatio = 1;
+    let isAutoFlipping = false, posX = 0, posY = 0, isDragging = false, startX, startY;
+    let wheelAccumulator = 0, inputTimeout, uiTimeout;
+    let baseW = 0, baseH = 0;
+
+    const book = document.getElementById("book"), pageInput = document.getElementById("pageInput"), loader = document.getElementById("loader");
+
+    function resetUiTimer() {
+        if (book.style.opacity === "0") return;
+        [document.getElementById("ui"), document.getElementById("prev"), document.getElementById("next")].forEach(el => el.classList.remove("ui-hidden"));
+        document.body.style.cursor = "default";
+        clearTimeout(uiTimeout);
+        uiTimeout = setTimeout(() => {
+            if (!isDragging && !isAutoFlipping && document.activeElement !== pageInput) {
+                [document.getElementById("ui"), document.getElementById("prev"), document.getElementById("next")].forEach(el => el.classList.add("ui-hidden"));
+                document.body.style.cursor = "none";
+            }
+        }, 5000);
+    }
+    ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel'].forEach(evt => window.addEventListener(evt, resetUiTimer));
+
+    async function loadPDF() {
+        try {
+            pdfDoc = await pdfjsLib.getDocument(url).promise;
+            document.getElementById("pageInfo").textContent = `1 / ${pdfDoc.numPages}`;
+            pageInput.max = pdfDoc.numPages;
+            const p1 = await pdfDoc.getPage(1);
+            pdfRatio = p1.getViewport({scale:1}).width / p1.getViewport({scale:1}).height;
+            resizeBook();
+            
+            for (let i = 1; i <= pdfDoc.numPages; i += 2) {
+                const sheet = document.createElement('div');
+                sheet.className = 'sheet';
+                sheet.innerHTML = `
+                    <div class="page-side page-front" data-p="${i}"><canvas class="rendering"></canvas></div>
+                    <div class="page-side page-back" data-p="${i+1}"><canvas class="rendering"></canvas></div>
+                `;
+                book.appendChild(sheet);
+            }
+            
+            // Prvotní vykreslení a až poté zobrazení knihy
+            await renderPages(); 
+            updateView();
+            
+            // Schování loaderu a zobrazení knihy
+            loader.style.opacity = "0";
+            setTimeout(() => {
+                loader.style.display = "none";
+                book.style.opacity = "1";
+                resetUiTimer();
+            }, 300);
+
+        } catch (e) {
+            console.error("Chyba při načítání PDF:", e);
+        }
+    }
+
+    function resizeBook() {
+        const isPort = window.innerHeight > window.innerWidth;
+        const mult = 0.93;
+        const maxW = window.innerWidth * mult, maxH = window.innerHeight * mult;
+        const availW = isPort ? maxW : maxW / 2;
+        let h = maxH, w = h * pdfRatio;
+        if (w > availW) { w = availW; h = w / pdfRatio; }
+        baseW = Math.floor(w); baseH = Math.floor(h);
+        applyTransform();
+        renderPages();
+    }
+
+    function applyTransform() {
+        const isPort = window.innerHeight > window.innerWidth;
+        const scaledW = baseW * currentScale;
+        const scaledH = baseH * currentScale;
+        book.style.width = (isPort ? scaledW : scaledW * 2) + "px";
+        book.style.height = scaledH + "px";
+        book.style.transform = `translate(calc(-50% + ${posX}px), calc(-50% + ${posY}px))`;
+        document.getElementById('book-viewport').style.perspective = currentScale > 1 ? "none" : "3000px";
+    }
+
+    async function renderPages() {
+        if (!pdfDoc) return;
+        const isPort = window.innerHeight > window.innerWidth;
+        let visiblePages = isPort ? [currentPage] : [currentPage, currentPage + 1];
+        
+        for (let pageNum of visiblePages) {
+            if (pageNum < 1 || pageNum > pdfDoc.numPages) continue;
+            const side = document.querySelector(`[data-p="${pageNum}"]`);
+            if (!side) continue;
+            const canvas = side.querySelector('canvas');
+            const ctx = canvas.getContext('2d', { alpha: false });
+            
+            // Zvýšení kvality: DPR 2.0 zajistí ostrost i při mírném zoomu
+            const dpr = 2.0; 
+            const currentH = baseH * currentScale;
+            const renderKey = `${currentH}-${dpr}`;
+            
+            if (canvas.dataset.rendered === renderKey) {
+                canvas.classList.remove('rendering');
+                continue;
+            }
+
+            canvas.classList.add('rendering');
+            const page = await pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: (currentH / page.getViewport({scale:1}).height) * dpr });
+
+            canvas.width = Math.ceil(viewport.width);
+            canvas.height = Math.ceil(viewport.height);
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+            // Použití intent: 'display' pro lepší text
+            await page.render({canvasContext: ctx, viewport: viewport, intent: 'display'}).promise;
+            
+            canvas.dataset.rendered = renderKey;
+            canvas.classList.remove('rendering');
+        }
+    }
+
+    function updateView() {
+        const isPort = window.innerHeight > window.innerWidth;
+        const sheets = document.querySelectorAll('.sheet');
+        const targetSheetIdx = Math.floor((currentPage - 1) / 2);
+
+        sheets.forEach((sheet, i) => {
+            const front = sheet.querySelector('.page-front');
+            const back = sheet.querySelector('.page-back');
+            if (isPort) {
+                sheet.style.display = (i === targetSheetIdx) ? "block" : "none";
+                sheet.style.transform = "none";
+                const isEven = currentPage % 2 === 0;
+                front.style.display = isEven ? "none" : "block";
+                back.style.display = isEven ? "block" : "none";
+                back.style.transform = "none";
+            } else {
+                sheet.style.display = "block";
+                front.style.display = "block";
+                back.style.display = "block";
+                back.style.transform = "rotateY(180deg)";
+                if (i < targetSheetIdx || (i === targetSheetIdx && currentPage % 2 === 0 && currentPage > 1)) {
+                    sheet.style.transform = "rotateY(-180deg)";
+                    sheet.style.zIndex = 100 + i;
+                } else if (i === targetSheetIdx) {
+                    sheet.style.transform = "rotateY(0deg)";
+                    sheet.style.zIndex = 500;
+                } else {
+                    sheet.style.transform = "rotateY(0deg)";
+                    sheet.style.zIndex = 100 - i;
+                }
+            }
+        });
+
+        document.getElementById("pageInfo").textContent = `${currentPage} / ${pdfDoc.numPages}`;
+        pageInput.value = currentPage;
+        renderPages();
+    }
+
+    async function goToPage(targetPage) {
+        if (isAutoFlipping || targetPage === currentPage) return;
+        isAutoFlipping = true;
+        if (currentScale !== 1) { currentScale = 1; posX = 0; posY = 0; applyTransform(); await new Promise(r => setTimeout(r, 150)); }
+
+        const isPort = window.innerHeight > window.innerWidth;
+        if (isPort) {
+            currentPage = targetPage;
+            updateView();
+        } else {
+            while (currentPage !== targetPage) {
+                if (targetPage > currentPage) {
+                    let step = (currentPage === 1) ? 1 : 2;
+                    if (currentPage + step > targetPage) step = targetPage - currentPage;
+                    currentPage += step;
+                } else {
+                    let step = (currentPage >= pdfDoc.numPages && pdfDoc.numPages % 2 !== 0) ? 1 : 2;
+                    if (currentPage <= 2) step = (currentPage === 2) ? 1 : 0;
+                    currentPage -= step;
+                }
+                updateView();
+                await new Promise(r => setTimeout(r, 70));
+            }
+        }
+        isAutoFlipping = false;
+        resetUiTimer();
+    }
+
+    const next = () => goToPage(Math.min(currentPage + (window.innerHeight > window.innerWidth ? 1 : (currentPage === 1 ? 1 : 2)), pdfDoc.numPages));
+    const prev = () => goToPage(Math.max(currentPage - (window.innerHeight > window.innerWidth ? 1 : (currentPage <= 2 ? 1 : 2)), 1));
+
+    pageInput.oninput = e => {
+        clearTimeout(inputTimeout);
+        const v = parseInt(e.target.value);
+        inputTimeout = setTimeout(() => { if (v >= 1 && v <= pdfDoc.numPages) { goToPage(v); pageInput.blur(); } }, 500);
+    };
+
+    window.addEventListener('wheel', e => {
+        wheelAccumulator += e.deltaY;
+        if (Math.abs(wheelAccumulator) >= 70) {
+            if (wheelAccumulator > 0) next(); else prev();
+            wheelAccumulator = 0;
+        }
+    }, { passive: true });
+
+    window.addEventListener('mousedown', e => { if (currentScale > 1) { isDragging = true; startX = e.clientX - posX; startY = e.clientY - posY; } });
+    window.addEventListener('mousemove', e => { if (isDragging) { posX = e.clientX - startX; posY = e.clientY - startY; applyTransform(); } });
+    window.addEventListener('mouseup', () => isDragging = false);
+
+    document.getElementById("next").onclick = next;
+    document.getElementById("prev").onclick = prev;
+    document.getElementById("zoomIn").onclick = () => { currentScale += 0.5; applyTransform(); renderPages(); };
+    document.getElementById("zoomOut").onclick = () => { if(currentScale > 1) { currentScale -= 0.5; if(currentScale <= 1) { currentScale = 1; posX = 0; posY = 0; } applyTransform(); renderPages(); } };
+    document.getElementById("fsBtn").onclick = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); };
+
+    window.addEventListener("keydown", e => {
+        if (document.activeElement === pageInput) return;
+        if (e.key === "ArrowRight") next();
+        if (e.key === "ArrowLeft") prev();
+    });
+
+    window.addEventListener('resize', () => { resizeBook(); updateView(); });
+    loadPDF();
+</script>
+</body>
+</html>
