@@ -306,7 +306,7 @@ function clampPage(p){
 return Math.max(1,Math.min(pdfDoc.numPages,p));
 }
 
-const single=()=>innerWidth<1100;
+const single = () => innerWidth < innerHeight;
 const step=()=>single()?1:2;
 
 window.addEventListener("wheel",e=>{
